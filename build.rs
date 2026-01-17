@@ -75,6 +75,7 @@ fn main() {
         .header("src/wrapper.h")
         // Use core instead of std
         .use_core()
+        .clang_arg("-Iarm-gnu-toolchain-15.2.rel1-aarch64-arm-none-eabi/arm-none-eabi/include")
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))

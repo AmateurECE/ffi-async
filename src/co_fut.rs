@@ -23,6 +23,7 @@ pub struct CoFut {
     func: unsafe extern "C" fn() -> c_int,
     waker: &'static AtomicWaker,
     result: Option<c_int>,
+    buffer: jmp_buf,
 }
 
 impl CoFut {
@@ -32,6 +33,7 @@ impl CoFut {
             result: None,
             func,
             waker,
+            buffer: Default::default(),
         }
     }
 }
@@ -45,7 +47,8 @@ impl Future for CoFut {
     ) -> core::task::Poll<Self::Output> {
         match self.state {
             CoState::Starting => {
-                let result = unsafe { trampoline(false, Some(self.func)) };
+                let result =
+                    unsafe { trampoline(false, &mut self.buffer as *mut jmp_buf, Some(self.func)) };
                 if result.status == PollStatus_READY {
                     return Poll::Ready(result.result);
                 }
@@ -55,17 +58,20 @@ impl Future for CoFut {
                 Poll::Pending
             }
 
-            CoState::Pending => match unsafe { trampoline(true, Some(self.func)) } {
-                CoPoll {
-                    status: PollStatus_PENDING,
-                    ..
-                } => Poll::Pending,
-                _ => {
-                    self.state = CoState::Finished;
-                    // INVARIANT: `func' has finished by this point, and we have its result.
-                    Poll::Ready(self.result.unwrap())
+            CoState::Pending => {
+                match unsafe { trampoline(true, &mut self.buffer as *mut jmp_buf, Some(self.func)) }
+                {
+                    CoPoll {
+                        status: PollStatus_PENDING,
+                        ..
+                    } => Poll::Pending,
+                    _ => {
+                        self.state = CoState::Finished;
+                        // INVARIANT: `func' has finished by this point, and we have its result.
+                        Poll::Ready(self.result.unwrap())
+                    }
                 }
-            },
+            }
 
             // INVARIANT: `func' has finished by this point, and we have its result.
             CoState::Finished => Poll::Ready(self.result.unwrap()),

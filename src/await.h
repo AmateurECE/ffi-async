@@ -2,6 +2,7 @@
 #define AWAIT_H
 
 #include <stdbool.h>
+#include <setjmp.h>
 
 // Status of a Future
 typedef enum {
@@ -22,6 +23,6 @@ void await();
 // Execute `app' as a coroutine, allowing it to await and be awoken. If
 // `resume' is true, resumes the execution of `app' from the last await point.
 // Otherwise, restarts app.
-CoPoll trampoline(bool resume, int (*app)());
+CoPoll trampoline(bool resume, jmp_buf* buffer, int (*app)());
 
 #endif // AWAIT_H
