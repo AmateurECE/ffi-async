@@ -11,6 +11,7 @@
 use std::env;
 use std::fs::File;
 use std::io::Write;
+use std::os::unix::fs;
 use std::path::PathBuf;
 
 fn main() {
@@ -33,24 +34,41 @@ fn main() {
     println!("cargo:rustc-link-arg-bins=-Tlink.x");
     println!("cargo:rustc-link-arg-bins=-Tdefmt.x");
 
+    // Compile libapp
     println!("cargo:rerun-if-changed=app.c");
     println!("cargo:rerun-if-changed=await.c");
     println!("cargo:rerun-if-changed=syscalls.c");
     println!("cargo:rerun-if-changed=sysmem.c");
-    cc::Build::new()
-        .file("src/app.c")
-        .file("src/await.c")
-        .file("src/syscalls.c")
-        .file("src/sysmem.c")
-        .compile("app");
+    let destination = cmake::Config::new(".")
+        .define("CMAKE_TRY_COMPILE_TARGET_TYPE", "STATIC_LIBRARY")
+        .define("CMAKE_EXPORT_COMPILE_COMMANDS", "ON")
+        .build();
+    let app_dir = PathBuf::from(destination.display().to_string()).join("build");
+    println!(
+        "cargo:rustc-link-search=native={}",
+        app_dir.as_path().to_str().unwrap()
+    );
+    println!("cargo:rustc-link-lib=static=app");
     println!("cargo:rustc-link-lib=c");
     println!(
         "cargo:rustc-link-search=arm-gnu-toolchain-15.2.rel1-aarch64-arm-none-eabi/arm-none-eabi/lib/thumb/v7e-m+fp/hard/"
     );
 
-    // The bindgen::Builder is the main entry point
-    // to bindgen, and lets you build up options for
-    // the resulting bindings.
+    let compile_commands = PathBuf::from("compile_commands.json");
+    if std::fs::exists(&compile_commands).unwrap() {
+        std::fs::remove_file(&compile_commands).unwrap();
+    }
+    fs::symlink(
+        app_dir
+            .join("compile_commands.json")
+            .as_path()
+            .to_str()
+            .unwrap(),
+        &compile_commands,
+    )
+    .unwrap();
+
+    // Generate bindings for libapp
     let bindings = bindgen::Builder::default()
         // The input header we would like to generate
         // bindings for.

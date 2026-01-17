@@ -36,4 +36,4 @@ opt-level = "z"
 
 [build-dependencies]
 bindgen = "0.72.1"
-cc = "1.2.53"
+cmake = "0.1.57"
