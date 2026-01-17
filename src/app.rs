@@ -1,3 +1,8 @@
+#![allow(non_upper_case_globals)]
+#![allow(non_camel_case_types)]
+#![allow(non_snake_case)]
+#![allow(dead_code)]
+
 use core::{
     cell::RefCell,
     sync::atomic::{AtomicBool, Ordering},
@@ -13,6 +18,8 @@ use embassy_stm32::{
     time::hz,
     timer::low_level::Timer,
 };
+
+include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 static LED: Mutex<RefCell<Option<Output>>> = Mutex::new(RefCell::new(None));
 static TIMER: Mutex<RefCell<Option<Timer<'static, TIM2>>>> = Mutex::new(RefCell::new(None));
@@ -40,25 +47,32 @@ impl Application {
     }
 
     pub async fn run(&self) {
-        loop {
-            embassy_time::Timer::after_secs(60).await;
-        }
+        // SAFETY: app is free from U.B.
+        unsafe { app() };
     }
 }
 
-#[interrupt]
-fn TIM2() {
-    static IS_ENABLED: AtomicBool = AtomicBool::new(false);
-
-    let is_enabled = IS_ENABLED.load(Ordering::Relaxed);
-    IS_ENABLED.store(!is_enabled, Ordering::Relaxed);
+#[unsafe(no_mangle)]
+extern "C" fn set_led(state: bool) {
     critical_section::with(|cs| {
         LED.borrow_ref_mut(cs)
             .as_mut()
             // INVARIANT: The LED has been initialized before the interrupt is enabled
             .unwrap()
-            .set_level(is_enabled.into());
+            .set_level(state.into());
+    });
+}
 
+#[interrupt]
+fn TIM2() {
+    static IS_READY: AtomicBool = AtomicBool::new(false);
+
+    let is_ready = IS_READY.load(Ordering::Relaxed);
+    IS_READY.store(!is_ready, Ordering::Relaxed);
+
+    unsafe { READY = is_ready };
+
+    critical_section::with(|cs| {
         TIMER
             .borrow_ref_mut(cs)
             .as_mut()
