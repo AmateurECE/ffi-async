@@ -33,18 +33,33 @@ fn main() {
     println!("cargo:rustc-link-arg-bins=-Tlink.x");
     println!("cargo:rustc-link-arg-bins=-Tdefmt.x");
 
-    println!("cargo:rerun-if-changed=src/app.c");
-    cc::Build::new().file("src/app.c").compile("app");
+    println!("cargo:rerun-if-changed=app.c");
+    println!("cargo:rerun-if-changed=await.c");
+    println!("cargo:rerun-if-changed=syscalls.c");
+    println!("cargo:rerun-if-changed=sysmem.c");
+    cc::Build::new()
+        .file("src/app.c")
+        .file("src/await.c")
+        .file("src/syscalls.c")
+        .file("src/sysmem.c")
+        .compile("app");
+    println!("cargo:rustc-link-lib=c");
+    println!(
+        "cargo:rustc-link-search=arm-gnu-toolchain-15.2.rel1-aarch64-arm-none-eabi/arm-none-eabi/lib/thumb/v7e-m+fp/hard/"
+    );
 
+    // The bindgen::Builder is the main entry point
+    // to bindgen, and lets you build up options for
+    // the resulting bindings.
     let bindings = bindgen::Builder::default()
         // The input header we would like to generate
         // bindings for.
-        .header("src/app.h")
+        .header("src/wrapper.h")
+        // Use core instead of std
+        .use_core()
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
-        // Use core instead of std
-        .use_core()
         // Finish the builder and generate the bindings.
         .generate()
         // Unwrap the Result and panic on failure.

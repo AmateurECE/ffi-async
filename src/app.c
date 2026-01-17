@@ -1,19 +1,14 @@
 #include "app.h"
 #include "api.h"
-
-volatile bool READY = false;
+#include "await.h"
 
 int app() {
   while (true) {
     set_led(true);
-
-    while (!READY)
-      ;
+    await();
 
     set_led(false);
-
-    while (READY)
-      ;
+    await();
   }
 
   return 0;

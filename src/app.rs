@@ -1,12 +1,4 @@
-#![allow(non_upper_case_globals)]
-#![allow(non_camel_case_types)]
-#![allow(non_snake_case)]
-#![allow(dead_code)]
-
-use core::{
-    cell::RefCell,
-    sync::atomic::{AtomicBool, Ordering},
-};
+use core::{cell::RefCell, ffi::c_int};
 
 use cortex_m::peripheral::NVIC;
 use critical_section::Mutex;
@@ -18,11 +10,13 @@ use embassy_stm32::{
     time::hz,
     timer::low_level::Timer,
 };
+use embassy_sync::waitqueue::AtomicWaker;
 
-include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+use crate::co_fut::{self, CoFut};
 
 static LED: Mutex<RefCell<Option<Output>>> = Mutex::new(RefCell::new(None));
 static TIMER: Mutex<RefCell<Option<Timer<'static, TIM2>>>> = Mutex::new(RefCell::new(None));
+static WAKER: AtomicWaker = AtomicWaker::new();
 
 pub struct Application;
 
@@ -46,9 +40,8 @@ impl Application {
         Application
     }
 
-    pub async fn run(&self) {
-        // SAFETY: app is free from U.B.
-        unsafe { app() };
+    pub fn run(&self) -> impl Future<Output = c_int> {
+        CoFut::new(co_fut::app, &WAKER)
     }
 }
 
@@ -65,12 +58,7 @@ extern "C" fn set_led(state: bool) {
 
 #[interrupt]
 fn TIM2() {
-    static IS_READY: AtomicBool = AtomicBool::new(false);
-
-    let is_ready = IS_READY.load(Ordering::Relaxed);
-    IS_READY.store(!is_ready, Ordering::Relaxed);
-
-    unsafe { READY = is_ready };
+    WAKER.wake();
 
     critical_section::with(|cs| {
         TIMER

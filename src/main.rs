@@ -9,6 +9,7 @@ use embassy_stm32::SharedData;
 use {defmt_rtt as _, panic_probe as _};
 
 mod app;
+mod co_fut;
 
 #[unsafe(link_section = ".ram_d3.shared_data")]
 static SHARED_DATA: MaybeUninit<SharedData> = MaybeUninit::uninit();
